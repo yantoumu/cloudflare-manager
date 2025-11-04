@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { encryptField, isEncrypted } from '../utils/crypto.js';
 
 export function initDatabase(dbPath: string): Database.Database {
   const db = new Database(dbPath);
@@ -266,17 +267,17 @@ export function initDatabase(dbPath: string): Database.Database {
     )
   `);
 
-  // 审计日志表
+  // 审计日志表（统一字段名称）
   db.exec(`
     CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY,
-      user_id TEXT DEFAULT 'system',
       action TEXT NOT NULL,
-      resource_type TEXT,
-      resource_id TEXT,
-      details TEXT,
+      user_id TEXT,
+      target TEXT,
       ip_address TEXT,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      user_agent TEXT,
+      details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -289,8 +290,13 @@ export function initDatabase(dbPath: string): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_workers_account_id ON workers(account_id);
     CREATE INDEX IF NOT EXISTS idx_workers_last_synced ON workers(last_synced DESC);
-    CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
   `);
+
+  // 自动迁移5：加密现有账号的敏感信息
+  migrateEncryptAccountCredentials(db);
 
   return db;
 }
@@ -306,4 +312,59 @@ export function setSystemConfig(db: Database.Database, key: string, value: strin
     VALUES (?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
   `).run(key, value);
+}
+
+/**
+ * 迁移函数：加密accounts表中的明文凭证
+ * 支持幂等执行：检查是否已加密，避免重复加密
+ */
+function migrateEncryptAccountCredentials(db: Database.Database): void {
+  try {
+    const accounts = db.prepare('SELECT id, api_token, auth_email, auth_key FROM accounts').all() as any[];
+    
+    if (accounts.length === 0) {
+      return; // 没有账号，无需迁移
+    }
+
+    let migratedCount = 0;
+
+    accounts.forEach((account) => {
+      let needsUpdate = false;
+      let encryptedToken = account.api_token;
+      let encryptedEmail = account.auth_email;
+      let encryptedKey = account.auth_key;
+
+      // 检查并加密 api_token
+      if (account.api_token && !isEncrypted(account.api_token)) {
+        encryptedToken = encryptField(account.api_token);
+        needsUpdate = true;
+      }
+
+      // 检查并加密 auth_email
+      if (account.auth_email && !isEncrypted(account.auth_email)) {
+        encryptedEmail = encryptField(account.auth_email);
+        needsUpdate = true;
+      }
+
+      // 检查并加密 auth_key
+      if (account.auth_key && !isEncrypted(account.auth_key)) {
+        encryptedKey = encryptField(account.auth_key);
+        needsUpdate = true;
+      }
+
+      if (needsUpdate) {
+        db.prepare(
+          'UPDATE accounts SET api_token = ?, auth_email = ?, auth_key = ? WHERE id = ?'
+        ).run(encryptedToken, encryptedEmail, encryptedKey, account.id);
+        migratedCount++;
+      }
+    });
+
+    if (migratedCount > 0) {
+      console.log(`Migration completed: Encrypted credentials for ${migratedCount} account(s)`);
+    }
+  } catch (error: any) {
+    console.error('Migration error (encrypt account credentials):', error.message);
+    // 不阻塞启动，但记录错误
+  }
 }

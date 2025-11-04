@@ -1,8 +1,10 @@
 import { ofetch } from 'ofetch';
 import type { Account, AccountAuth, CFApiResponse, CFWorker, CFSubdomain, WorkerBinding } from '../models/types.js';
+import { decryptField } from '../utils/crypto.js';
 
 const CF_API_BASE = 'https://api.cloudflare.com/client/v4';
-const DEBUG = process.env.DEBUG_CF_API === 'true';
+// 生产环境自动禁用DEBUG模式
+const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_CF_API === 'true';
 
 // ANSI颜色码
 const colors = {
@@ -22,16 +24,22 @@ export class CloudflareAPI {
 
   constructor(account: Account | AccountAuth) {
     if ('authType' in account) {
-      // Account对象
+      // Account对象 - 需要解密
       this.accountId = account.accountId;
       this.debugPrefix = `[${account.accountId.substring(0, 8)}]`;
+      
+      // 解密凭证
+      const apiToken = account.apiToken ? (decryptField(account.apiToken) ?? undefined) : undefined;
+      const authEmail = account.authEmail ? (decryptField(account.authEmail) ?? undefined) : undefined;
+      const authKey = account.authKey ? (decryptField(account.authKey) ?? undefined) : undefined;
+      
       this.headers = this.buildHeaders(account.authType, {
-        apiToken: account.apiToken,
-        authEmail: account.authEmail,
-        authKey: account.authKey,
+        apiToken,
+        authEmail,
+        authKey,
       });
     } else {
-      // AccountAuth对象
+      // AccountAuth对象 - 旧接口，保持兼容
       this.accountId = account.accountId;
       this.debugPrefix = `[${account.accountId.substring(0, 8)}]`;
       if (account.type === 'token') {

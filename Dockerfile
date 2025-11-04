@@ -1,10 +1,7 @@
-# Build stage
-FROM node:18-alpine AS builder
+# Build stage - 编译 TypeScript 和安装依赖
+FROM node:18-bookworm AS builder
 
-WORKDIR /app
-
-# Install dependencies for native modules compilation
-RUN apk add --no-cache python3 make g++
+WORKDIR /build
 
 # Copy package files
 COPY package*.json ./
@@ -19,34 +16,24 @@ COPY src ./src
 # Build TypeScript
 RUN npm run build
 
-# Remove devDependencies after build
-RUN npm prune --production
+# Install production dependencies only in separate directory
+RUN npm ci --omit=dev --ignore-scripts
 
-# Production stage
-FROM node:18-alpine
+# Production stage - distroless 镜像
+FROM gcr.io/distroless/nodejs24-debian12:nonroot
 
 WORKDIR /app
 
-# Install runtime dependencies for better-sqlite3
-RUN apk add --no-cache sqlite
-
-# Create app user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
-
-# Copy built application
-COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nodejs:nodejs /app/package*.json ./
+# Copy built application from builder
+COPY --from=builder --chown=nonroot:nonroot /build/dist ./dist
+COPY --from=builder --chown=nonroot:nonroot /build/node_modules ./node_modules
+COPY --from=builder --chown=nonroot:nonroot /build/package*.json ./
 
 # Copy public directory (frontend)
-COPY --chown=nodejs:nodejs public ./public
+COPY --chown=nonroot:nonroot public ./public
 
-# Create data directory
-RUN mkdir -p /app/data && chown nodejs:nodejs /app/data
-
-# Switch to non-root user
-USER nodejs
+# Create data directory (distroless 镜像已经使用 nonroot 用户，UID 65532)
+# 注意: distroless 镜像中无法创建目录，需要在运行时挂载卷
 
 # Expose port
 EXPOSE 3000
@@ -56,9 +43,5 @@ ENV NODE_ENV=production \
     PORT=3000 \
     DB_PATH=/app/data/data.db
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
-
-# Start application
-CMD ["node", "dist/index.js"]
+# Start application (distroless 镜像自动使用 nonroot 用户)
+CMD ["dist/index.js"]

@@ -4,11 +4,27 @@ import bcrypt from 'bcrypt';
 import { getSystemConfig, setSystemConfig } from '../db/schema.js';
 import Database from 'better-sqlite3';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret';
+// 强制检查 JWT_SECRET 环境变量
+if (!process.env.JWT_SECRET) {
+  throw new Error(
+    'FATAL: JWT_SECRET environment variable is not set. ' +
+    'Generate one with: openssl rand -base64 32'
+  );
+}
+
+if (process.env.JWT_SECRET.length < 32) {
+  throw new Error(
+    'FATAL: JWT_SECRET must be at least 32 characters long for security. ' +
+    'Generate one with: openssl rand -base64 32'
+  );
+}
+
+const JWT_SECRET = process.env.JWT_SECRET;
 const MASTER_PASSWORD_KEY = 'master_password_hash';
 
 export interface AuthRequest extends Request {
   userId?: string;
+  clientIp?: string;  // 客户端IP地址，由中间件设置
 }
 
 // 初始化主密码

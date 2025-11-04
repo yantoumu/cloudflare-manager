@@ -1,0 +1,56 @@
+# Dokploy 部署配置
+# 使用方式: 在 Dokploy 面板中导入此配置或手动配置
+
+version: '1.0'
+
+# 应用配置
+application:
+  name: cloudflare-manager
+  type: docker
+  
+  # 构建配置
+  build:
+    context: .
+    dockerfile: Dockerfile
+    
+  # 端口映射
+  ports:
+    - "3000:3000"
+  
+  # 环境变量 (需要在 Dokploy 面板中设置)
+  environment:
+    - NODE_ENV=production
+    - PORT=3000
+    - DB_PATH=/app/data/data.db
+    # 以下需要在 Dokploy 中设置敏感值:
+    # - JWT_SECRET=<generate-with-openssl-rand-base64-32>
+    # - CLIENT_URL=https://your-domain.com
+  
+  # 持久化存储 - 挂载数据目录
+  volumes:
+    - cloudflare-data:/app/data
+  
+  # 健康检查
+  healthcheck:
+    test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 40s
+  
+  # 资源限制
+  resources:
+    limits:
+      memory: 512M
+      cpus: '0.5'
+    reservations:
+      memory: 256M
+      cpus: '0.25'
+  
+  # 重启策略
+  restart: unless-stopped
+
+# 卷定义
+volumes:
+  cloudflare-data:
+    driver: local

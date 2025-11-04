@@ -47,6 +47,18 @@ const io = new SocketIO(httpServer, {
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 
+// IP地址提取中间件（用于审计日志）
+app.use((req, res, next) => {
+  // 优先使用X-Forwarded-For（代理/负载均衡场景）
+  const forwardedFor = req.headers['x-forwarded-for'];
+  if (forwardedFor) {
+    (req as any).clientIp = forwardedFor.toString().split(',')[0].trim();
+  } else {
+    (req as any).clientIp = req.socket.remoteAddress || 'unknown';
+  }
+  next();
+});
+
 // 健康检查
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
