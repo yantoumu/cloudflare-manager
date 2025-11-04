@@ -6,15 +6,20 @@ services:
     container_name: cloudflare-manager
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3000:3000"  # 只监听本地，通过 Nginx 反向代理访问
+      # 端口映射: 宿主机端口:容器端口
+      # 格式: "127.0.0.1:${HOST_PORT:-3000}:3000"
+      # 只监听本地 127.0.0.1，通过 Nginx 反向代理访问（更安全）
+      # 如需外部直接访问，改为 "${HOST_PORT:-3000}:3000"
+      - "127.0.0.1:${HOST_PORT:-3000}:3000"
     volumes:
       - cloudflare-data:/app/data
     environment:
       - NODE_ENV=production
-      - PORT=3000
-      - JWT_SECRET=${JWT_SECRET:-change-this-secret-key}
+      - PORT=3000  # 容器内端口，通常不需要改
+      - JWT_SECRET=${JWT_SECRET}  # 必填！从 .env 读取
       - DB_PATH=/app/data/data.db
       - DEBUG_CF_API=${DEBUG_CF_API:-false}
+      - CLIENT_URL=${CLIENT_URL:-}
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s

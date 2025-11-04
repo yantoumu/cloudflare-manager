@@ -53,17 +53,44 @@ fi
 success "Docker Compose 已安装"
 
 # 检查端口占用
-if lsof -i:3000 &> /dev/null; then
-    warning "端口 3000 已被占用！"
-    read -p "是否要停止占用进程？(y/N): " -n 1 -r
+DEFAULT_PORT=3000
+CUSTOM_PORT=""
+
+if lsof -i:${DEFAULT_PORT} &> /dev/null; then
+    warning "端口 ${DEFAULT_PORT} 已被占用！"
+    echo "请选择处理方式："
+    echo "  1) 停止占用进程"
+    echo "  2) 使用其他端口"
+    echo "  3) 退出部署"
+    read -p "请选择 [1-3]: " -n 1 -r
     echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        lsof -ti:3000 | xargs kill -9 || true
-        success "已停止占用进程"
-    else
-        info "请修改 docker-compose.yml 中的端口映射"
-        exit 1
-    fi
+
+    case $REPLY in
+        1)
+            lsof -ti:${DEFAULT_PORT} | xargs kill -9 || true
+            success "已停止占用进程"
+            ;;
+        2)
+            read -p "请输入新端口号 (例如: 8080): " CUSTOM_PORT
+            if ! [[ "$CUSTOM_PORT" =~ ^[0-9]+$ ]] || [ "$CUSTOM_PORT" -lt 1024 ] || [ "$CUSTOM_PORT" -gt 65535 ]; then
+                error "无效的端口号！请输入 1024-65535 之间的数字"
+                exit 1
+            fi
+            if lsof -i:${CUSTOM_PORT} &> /dev/null; then
+                error "端口 ${CUSTOM_PORT} 也被占用！"
+                exit 1
+            fi
+            success "将使用端口: ${CUSTOM_PORT}"
+            ;;
+        3)
+            info "部署已取消"
+            exit 0
+            ;;
+        *)
+            error "无效的选择"
+            exit 1
+            ;;
+    esac
 fi
 
 ###############################################################################
@@ -91,22 +118,28 @@ if [ ! -f .env ]; then
 # 生成时间: $(date)
 
 # ============================================
-# 安全配置
+# 安全配置（必填）
 # ============================================
 
 JWT_SECRET=${JWT_SECRET}
 
 # ============================================
+# 端口配置
+# ============================================
+
+# 宿主机端口（如果被占用可以修改）
+HOST_PORT=${CUSTOM_PORT:-3000}
+
+# ============================================
 # 服务配置
 # ============================================
 
-PORT=3000
 NODE_ENV=production
 DB_PATH=/app/data/data.db
 DEBUG_CF_API=false
 
 # ============================================
-# CORS 配置 (如果前后端分离部署请修改)
+# CORS 配置（可选 - 如果前后端分离部署请修改）
 # ============================================
 
 # CLIENT_URL=http://your-domain.com
@@ -175,15 +208,19 @@ done
 # 5. 显示部署信息
 ###############################################################################
 
+# 获取实际端口
+ACTUAL_PORT=${CUSTOM_PORT:-3000}
+
 echo ""
 echo "=========================================="
 echo -e "${GREEN}部署成功！${NC}"
 echo "=========================================="
 echo ""
 echo "📋 服务信息:"
-echo "  - 访问地址: http://$(hostname -I | awk '{print $1}'):3000"
-echo "  - 健康检查: http://localhost:3000/health"
+echo "  - 访问地址: http://$(hostname -I | awk '{print $1}'):${ACTUAL_PORT}"
+echo "  - 健康检查: http://localhost:${ACTUAL_PORT}/health"
 echo "  - 容器名称: cloudflare-manager"
+echo "  - 监听端口: ${ACTUAL_PORT}"
 echo ""
 echo "📝 常用命令:"
 echo "  - 查看日志: docker-compose logs -f"
