@@ -1,7 +1,17 @@
 import Database from 'better-sqlite3';
 import { encryptField, isEncrypted } from '../utils/crypto.js';
+import { mkdirSync } from 'fs';
+import { dirname } from 'path';
 
 export function initDatabase(dbPath: string): Database.Database {
+  // 确保数据库目录存在
+  const dbDir = dirname(dbPath);
+  try {
+    mkdirSync(dbDir, { recursive: true });
+  } catch (error) {
+    // 目录可能已存在，忽略错误
+  }
+  
   const db = new Database(dbPath);
 
   db.pragma('journal_mode = WAL');
