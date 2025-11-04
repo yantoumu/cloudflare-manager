@@ -105,7 +105,13 @@ cloudflare-manager/
 **验证配置**:
 ```bash
 # 查看实际使用的环境变量
+# Docker Compose v2 (新版本，推荐)
+docker compose config
+
+# Docker Compose v1 (旧版本)
 docker-compose config
+
+# 注意：部署脚本会自动检测并使用正确的命令
 ```
 
 ---
@@ -218,9 +224,12 @@ docker-compose config | grep JWT_SECRET
 
 ```bash
 # 查看实际端口映射
+# Docker Compose v2
+docker compose ps
+# 或 Docker Compose v1
 docker-compose ps
 
-# 或
+# 直接查看容器端口
 docker port cloudflare-manager
 ```
 
@@ -261,7 +270,9 @@ openssl rand -base64 32
 echo "JWT_SECRET=<生成的密钥>" >> .env
 
 # 3. 重启容器
-docker-compose restart
+docker compose restart  # v2
+# 或
+docker-compose restart  # v1
 ```
 
 ### 错误 2: JWT_SECRET 太短
@@ -293,7 +304,7 @@ lsof -ti:3000 | xargs kill -9
 
 # 方法2: 修改端口
 # 编辑 .env: HOST_PORT=8080
-# 重启: docker-compose up -d
+# 重启: docker compose up -d  (v2) 或 docker-compose up -d  (v1)
 ```
 
 ### 错误 4: .env 文件不存在
@@ -360,13 +371,13 @@ cp .env.example .env
 nano .env
 
 # 验证配置
-docker-compose config
+docker compose config  # v2 或 docker-compose config  # v1
 
 # 应用配置（重启容器）
-docker-compose restart
+docker compose restart  # v2 或 docker-compose restart  # v1
 
 # 查看日志
-docker-compose logs -f
+docker compose logs -f  # v2 或 docker-compose logs -f  # v1
 
 # 检查端口
 docker port cloudflare-manager

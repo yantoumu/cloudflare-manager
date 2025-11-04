@@ -141,7 +141,7 @@ sudo nginx -t
 sudo systemctl status nginx
 
 # 查看应用日志
-docker-compose logs -f
+docker compose logs -f  # v2 或 docker-compose logs -f  # v1
 
 # 测试访问（服务器本地）
 curl http://127.0.0.1:3000/health
@@ -166,13 +166,13 @@ curl http://your-domain.com/health
 **解决**:
 ```bash
 # 检查容器状态
-docker-compose ps
+docker compose ps  # v2 或 docker-compose ps  # v1
 
 # 检查应用是否监听 3000 端口
 curl http://127.0.0.1:3000/health
 
 # 重启应用
-docker-compose restart
+docker compose restart  # v2 或 docker-compose restart  # v1
 ```
 
 ### Q: WebSocket 连接失败
@@ -280,13 +280,13 @@ sudo nginx -t
 sudo systemctl status nginx
 
 # 查看应用日志
-docker-compose logs -f
+docker compose logs -f  # v2 或 docker-compose logs -f  # v1
 
 # 重启应用
-docker-compose restart
+docker compose restart  # v2 或 docker-compose restart  # v1
 
 # 查看容器状态
-docker-compose ps
+docker compose ps  # v2 或 docker-compose ps  # v1
 ```
 
 ---

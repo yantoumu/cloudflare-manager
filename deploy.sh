@@ -45,12 +45,17 @@ if ! command -v docker &> /dev/null; then
 fi
 success "Docker 已安装: $(docker --version)"
 
-# 检查 Docker Compose
-if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+# 检查 Docker Compose 并确定使用哪个命令
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE="docker-compose"
+    success "Docker Compose 已安装 (v1)"
+elif docker compose version &> /dev/null; then
+    DOCKER_COMPOSE="docker compose"
+    success "Docker Compose 已安装 (v2)"
+else
     error "Docker Compose 未安装！"
     exit 1
 fi
-success "Docker Compose 已安装"
 
 # 检查端口占用
 DEFAULT_PORT=3000
@@ -165,12 +170,12 @@ fi
 ###############################################################################
 
 info "开始构建 Docker 镜像..."
-docker-compose build --no-cache
+$DOCKER_COMPOSE build --no-cache
 
 success "镜像构建完成"
 
 info "启动容器..."
-docker-compose up -d
+$DOCKER_COMPOSE up -d
 
 success "容器已启动"
 
@@ -182,9 +187,9 @@ info "等待服务启动..."
 sleep 5
 
 # 检查容器状态
-if ! docker-compose ps | grep -q "Up"; then
+if ! $DOCKER_COMPOSE ps | grep -q "Up"; then
     error "容器启动失败！"
-    info "查看日志: docker-compose logs"
+    info "查看日志: $DOCKER_COMPOSE logs"
     exit 1
 fi
 success "容器运行正常"
@@ -198,7 +203,7 @@ for i in {1..10}; do
     fi
     if [ $i -eq 10 ]; then
         warning "健康检查失败，请查看日志"
-        docker-compose logs --tail=50
+        $DOCKER_COMPOSE logs --tail=50
         exit 1
     fi
     sleep 2
@@ -223,10 +228,10 @@ echo "  - 容器名称: cloudflare-manager"
 echo "  - 监听端口: ${ACTUAL_PORT}"
 echo ""
 echo "📝 常用命令:"
-echo "  - 查看日志: docker-compose logs -f"
-echo "  - 重启服务: docker-compose restart"
-echo "  - 停止服务: docker-compose down"
-echo "  - 更新应用: git pull && docker-compose up -d --build"
+echo "  - 查看日志: $DOCKER_COMPOSE logs -f"
+echo "  - 重启服务: $DOCKER_COMPOSE restart"
+echo "  - 停止服务: $DOCKER_COMPOSE down"
+echo "  - 更新应用: git pull && $DOCKER_COMPOSE up -d --build"
 echo ""
 echo "⚠️  重要提示:"
 echo "  1. 首次访问需要设置主密码"
@@ -242,5 +247,5 @@ echo ""
 read -p "是否查看实时日志？(y/N): " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    docker-compose logs -f
+    $DOCKER_COMPOSE logs -f
 fi
