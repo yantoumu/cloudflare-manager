@@ -16,8 +16,8 @@ COPY src ./src
 # Build TypeScript
 RUN npm run build
 
-# Install production dependencies only in separate directory
-RUN npm ci --omit=dev --ignore-scripts
+# Remove dev dependencies but keep built native modules
+RUN npm prune --omit=dev
 
 # Production stage - 运行时镜像
 FROM node:18-bookworm-slim AS runtime
