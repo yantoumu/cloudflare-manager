@@ -196,8 +196,12 @@ success "容器运行正常"
 
 # 健康检查
 info "执行健康检查..."
+
+# 获取实际端口（优先级：CUSTOM_PORT > .env中的HOST_PORT > 默认3000）
+ACTUAL_PORT=${CUSTOM_PORT:-$(grep -E "^HOST_PORT=" .env 2>/dev/null | cut -d'=' -f2 || echo "3000")}
+
 for i in {1..10}; do
-    if curl -s http://localhost:3000/health > /dev/null; then
+    if curl -s http://localhost:${ACTUAL_PORT}/health > /dev/null; then
         success "健康检查通过！"
         break
     fi
@@ -213,8 +217,8 @@ done
 # 5. 显示部署信息
 ###############################################################################
 
-# 获取实际端口
-ACTUAL_PORT=${CUSTOM_PORT:-3000}
+# 获取实际端口（与健康检查保持一致）
+ACTUAL_PORT=${CUSTOM_PORT:-$(grep -E "^HOST_PORT=" .env 2>/dev/null | cut -d'=' -f2 || echo "3000")}
 
 echo ""
 echo "=========================================="
