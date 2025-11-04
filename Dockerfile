@@ -48,8 +48,7 @@ ENV NODE_ENV=production \
     PORT=3000 \
     DB_PATH=/app/data/data.db
 
-# 以非 root 身份运行
-USER node
+# 保持默认 root 用户以确保挂载卷可写
 
 # Start application
 CMD ["node", "dist/index.js"]
