@@ -1,54 +1,68 @@
-# Build stage - 编译 TypeScript 和安装依赖
-FROM node:18-bookworm AS builder
+# ============================================
+# Stage 1: Builder - 编译和构建
+# ============================================
+FROM node:18-alpine AS builder
 
 WORKDIR /build
 
-# Copy package files
+# 安装构建依赖（better-sqlite3 需要原生模块编译）
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    sqlite
+
+# 复制 package 文件
 COPY package*.json ./
 
-# Install ALL dependencies (including devDependencies for build)
-RUN npm ci
+# 安装所有依赖（包括 devDependencies）
+RUN npm ci --quiet
 
-# Copy source code
+# 复制源代码
 COPY tsconfig.json ./
 COPY src ./src
 
-# Build TypeScript
+# 编译 TypeScript
 RUN npm run build
 
-# Remove dev dependencies but keep built native modules
+# 清理开发依赖，保留生产依赖和原生模块
 RUN npm prune --omit=dev
 
-# Production stage - 运行时镜像
-FROM node:18-bookworm-slim AS runtime
+# ============================================
+# Stage 2: Runtime - 最小化运行镜像
+# ============================================
+FROM node:18-alpine AS runtime
 
 WORKDIR /app
 
-# 安装运行时所需的工具 (用于健康检查等)
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends wget ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+# 只安装运行时必需的工具
+RUN apk add --no-cache \
+    wget \
+    ca-certificates \
+    sqlite-libs
 
-# Copy built application from builder
-COPY --from=builder --chown=node:node /build/dist ./dist
-COPY --from=builder --chown=node:node /build/node_modules ./node_modules
-COPY --from=builder --chown=node:node /build/package*.json ./
+# 从 builder 复制编译后的应用
+COPY --from=builder /build/dist ./dist
+COPY --from=builder /build/node_modules ./node_modules
+COPY --from=builder /build/package*.json ./
 
-# Copy public directory (frontend)
-COPY --chown=node:node public ./public
+# 复制前端静态文件
+COPY public ./public
 
-# 准备数据目录
-RUN mkdir -p /app/data && chown node:node /app/data
+# 创建数据目录（确保权限正确）
+RUN mkdir -p /app/data && chmod 777 /app/data
 
-# Expose port
+# 暴露端口
 EXPOSE 3000
 
-# Environment variables
+# 环境变量
 ENV NODE_ENV=production \
     PORT=3000 \
     DB_PATH=/app/data/data.db
 
-# 保持默认 root 用户以确保挂载卷可写
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost:3000/health || exit 1
 
-# Start application
+# 启动应用（保持 root 用户以确保 volume 可写）
 CMD ["node", "dist/index.js"]
