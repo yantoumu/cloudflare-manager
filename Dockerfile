@@ -19,21 +19,26 @@ RUN npm run build
 # Install production dependencies only in separate directory
 RUN npm ci --omit=dev --ignore-scripts
 
-# Production stage - distroless 镜像
-FROM gcr.io/distroless/nodejs24-debian12:nonroot
+# Production stage - 运行时镜像
+FROM node:18-bookworm-slim AS runtime
 
 WORKDIR /app
 
+# 安装运行时所需的工具 (用于健康检查等)
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends wget ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
 # Copy built application from builder
-COPY --from=builder --chown=nonroot:nonroot /build/dist ./dist
-COPY --from=builder --chown=nonroot:nonroot /build/node_modules ./node_modules
-COPY --from=builder --chown=nonroot:nonroot /build/package*.json ./
+COPY --from=builder --chown=node:node /build/dist ./dist
+COPY --from=builder --chown=node:node /build/node_modules ./node_modules
+COPY --from=builder --chown=node:node /build/package*.json ./
 
 # Copy public directory (frontend)
-COPY --chown=nonroot:nonroot public ./public
+COPY --chown=node:node public ./public
 
-# Create data directory (distroless 镜像已经使用 nonroot 用户，UID 65532)
-# 注意: distroless 镜像中无法创建目录，需要在运行时挂载卷
+# 准备数据目录
+RUN mkdir -p /app/data && chown node:node /app/data
 
 # Expose port
 EXPOSE 3000
@@ -43,5 +48,8 @@ ENV NODE_ENV=production \
     PORT=3000 \
     DB_PATH=/app/data/data.db
 
-# Start application (distroless 镜像自动使用 nonroot 用户)
-CMD ["dist/index.js"]
+# 以非 root 身份运行
+USER node
+
+# Start application
+CMD ["node", "dist/index.js"]
