@@ -3,23 +3,10 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { getSystemConfig, setSystemConfig } from '../db/schema.js';
 import Database from 'better-sqlite3';
+import { config } from '../config.js';
 
-// 强制检查 JWT_SECRET 环境变量
-if (!process.env.JWT_SECRET) {
-  throw new Error(
-    'FATAL: JWT_SECRET environment variable is not set. ' +
-    'Generate one with: openssl rand -base64 32'
-  );
-}
-
-if (process.env.JWT_SECRET.length < 32) {
-  throw new Error(
-    'FATAL: JWT_SECRET must be at least 32 characters long for security. ' +
-    'Generate one with: openssl rand -base64 32'
-  );
-}
-
-const JWT_SECRET = process.env.JWT_SECRET;
+// 从统一配置中获取 JWT_SECRET（已在 config.ts 中验证）
+const JWT_SECRET = config.jwtSecret;
 const MASTER_PASSWORD_KEY = 'master_password_hash';
 
 export interface AuthRequest extends Request {

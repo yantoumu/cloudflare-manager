@@ -1,8 +1,10 @@
+// 必须首先导入配置模块，确保环境变量正确加载
+import { config } from './config.js';
+
 import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initDatabase } from './db/schema.js';
@@ -18,10 +20,8 @@ import { WorkersService } from './services/WorkersService.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config();
-
-const PORT = process.env.PORT || 3000;
-const DB_PATH = process.env.DB_PATH || './data.db';
+const PORT = config.port;
+const DB_PATH = config.dbPath;
 
 // 初始化数据库
 const db = initDatabase(DB_PATH);
@@ -38,13 +38,13 @@ const httpServer = createServer(app);
 // Socket.IO
 const io = new SocketIO(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: config.clientUrl,
     credentials: true,
   },
 });
 
 // 中间件
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }));
+app.use(cors({ origin: config.clientUrl, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 
 // IP地址提取中间件（用于审计日志）
